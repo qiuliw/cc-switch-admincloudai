@@ -41,4 +41,6 @@ export const localizedClientApi = {
   setPath: (path: string | null) =>
     invoke<LocalizedClientStatus>("set_chinese_chatgpt_path", { path }),
   openLogs: () => invoke<void>("open_app_log_folder"),
+  /** 在线客服二维码（data URL）；服务不可达返回 null */
+  getSupportQr: () => invoke<string | null>("get_online_support_qr"),
 };

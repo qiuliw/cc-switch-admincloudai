@@ -15,8 +15,6 @@ rustup toolchain install 1.95 --profile minimal
 $env:RUSTUP_TOOLCHAIN = '1.95'
 pnpm install --frozen-lockfile
 pnpm typecheck
-pnpm test:unit tests/components/CustomUpdateGuard.test.tsx
-cargo +1.95 test --manifest-path src-tauri/Cargo.toml --lib custom_update_guard
 cargo +1.95 test --manifest-path src-tauri/Cargo.toml --lib localized_client
 cargo +1.95 test --manifest-path src-tauri/Cargo.toml --lib migrate_v
 pnpm tauri build --bundles nsis
@@ -45,7 +43,21 @@ registry = "sparse+https://rsproxy.cn/index/"
 
 默认复用 `~/.cc-switch`。新的应用标识会使用独立的 Tauri `app_paths.json`；如果旧应用配置过非默认数据目录，需要在新启动器设置中重新选择原目录，不会自动搬运其他应用身份下的路径覆盖设置。真实升级前先退出启动器，完整备份该目录。上游对已有旧 schema 数据库在迁移前创建 `backups/db_backup_*.db`，并执行 SQLite 完整性验证和原子发布；但是自动备份失败时上游会记录警告并继续迁移，因此不能代替手动完整备份。测试使用 `CC_SWITCH_TEST_HOME`，不修改 HOME、USERPROFILE 或 CODEX_HOME。
 
-尚未建立定制签名更新服务。应用的启动更新检查、关于页和数据库恢复页都采用手动说明；原生遗留 install/check 命令直接返回明确错误，updater 插件、权限、上游公钥及 feed 均已移除。不会声称“已是最新”。请从 https://api.admincloudai.com/home 或联系支持获取兼容的 AdminCloudAI 安装包。上游项目链接仅用于来源和许可证说明，不会下载或安装上游应用更新。应用页的独立工具升级功能保留。
+在线升级为上游原生实现（`tauri-plugin-updater`），仅将升级 feed 指向自建服务：
+`https://api.admincloudai.com/api/update/{{target}}/{{current_version}}`，公钥见
+`tauri.conf.json` 的 `plugins.updater.pubkey`。构建安装包前需设置
+`TAURI_SIGNING_PRIVATE_KEY`（及可选 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`），
+`tauri build` 会生成 `.sig` 签名文件；把安装包与签名发布到后端服务的
+`data/updates/` 并更新 `data/versions.json` 即完成发版（见 `../admincloudai-backend/README.md`）。
+关于页提供「检查更新 / 更新到 vX.Y.Z」，下载安装由后端命令 `install_update_and_restart`
+完成并自动重启；数据库恢复页在上游流程上仅把发布页链接指向 AdminCloudAI 官网。
+在线客服二维码地址按同样方式配置：`tauri.conf.json` → `plugins.admincloud.qrUrl`，
+拉取失败时界面回落打包内的内置二维码。
+上游项目链接仅用于来源和许可证说明，不会下载或安装上游应用更新。应用页的独立工具升级功能保留。
+
+随安装包内置的技能位于 `src-tauri/resources/skills/`（imagegen-enhance，vendor 自
+https://github.com/qiuliw/imagegen-enhance，Apache-2.0）。用户可在「技能」页的更多菜单
+一键安装，安装命令对目录做白名单校验（`commands::skill::BUILTIN_SKILLS`）。
 
 ## 隔离启动与界面验证
 

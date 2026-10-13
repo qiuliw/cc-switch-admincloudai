@@ -38,6 +38,7 @@ import {
   useDeleteSkillBackup,
   useDiscoverableSkills,
   useImportSkillsFromApps,
+  useInstallBuiltinSkill,
   useInstallSkillsFromZip,
   useInstalledSkills,
   useRestoreSkillBackup,
@@ -183,6 +184,7 @@ const UnifiedSkillsPanel: React.FC<UnifiedSkillsPanelProps> = ({
   const { data: unmanagedSkills, refetch: scanUnmanaged } =
     useScanUnmanagedSkills({ enabled: true });
   const importMutation = useImportSkillsFromApps();
+  const installBuiltinMutation = useInstallBuiltinSkill();
   const installFromZipMutation = useInstallSkillsFromZip();
   const {
     data: updateCheck,
@@ -677,6 +679,25 @@ const UnifiedSkillsPanel: React.FC<UnifiedSkillsPanelProps> = ({
     }
   };
 
+  // 安装内置技能（随应用资源打包，不需要仓库）
+  const handleInstallBuiltin = async (directory: string, label: string) => {
+    if (!beginWrite()) return;
+    try {
+      await installBuiltinMutation.mutateAsync(directory);
+      toast.success(
+        t("skills.builtinSkillInstalled", {
+          defaultValue: "已安装内置技能：{{name}}",
+          name: label,
+        }),
+        { closeButton: true },
+      );
+    } catch (error) {
+      toast.error(t("common.error"), { description: String(error) });
+    } finally {
+      endWrite();
+    }
+  };
+
   const reportEnableFailures = (
     failures: Array<{ id: string; app: AppId; error: unknown }>,
   ) => {
@@ -993,6 +1014,17 @@ const UnifiedSkillsPanel: React.FC<UnifiedSkillsPanelProps> = ({
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setStorageOpen(true)}>
                 {t("skills.storageSheet.open")}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={controlsDisabled || installBuiltinMutation.isPending}
+                onSelect={() =>
+                  void handleInstallBuiltin("imagegen-enhance", "imagegen 图片生成")
+                }
+              >
+                {t(
+                  "skills.installBuiltinImagegen",
+                  "安装内置「图片生成」技能",
+                )}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

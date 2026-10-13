@@ -1,19 +1,31 @@
 import { useEffect, useMemo, useState } from "react";
-import { ExternalLink, Github, Info, Loader2, Sparkles } from "lucide-react";
+import {
+  Download,
+  ExternalLink,
+  Github,
+  Info,
+  Loader2,
+  RefreshCw,
+  Sparkles,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "react-i18next";
 import { getVersion } from "@tauri-apps/api/app";
 import { settingsApi } from "@/lib/api";
+import { useUpdate } from "@/contexts/UpdateContext";
 import { Badge } from "@/components/ui/badge";
 import { WhatsNewDialog } from "@/components/WhatsNewDialog";
 import { WHATS_NEW_ENTRIES, entriesUpTo } from "@/lib/whatsNew";
-import { CUSTOM_UPDATE_URL } from "@/lib/updater";
+import { extractErrorMessage } from "@/utils/errorUtils";
 import { toast } from "@/lib/toast";
 import appIcon from "@/assets/admincloud/app-icon.png";
 
 export function AboutSection({ isPortable }: { isPortable: boolean }) {
   const { t } = useTranslation();
+  const { hasUpdate, updateInfo, isChecking, checkUpdate, resetDismiss } =
+    useUpdate();
   const [version, setVersion] = useState<string | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
   const [whatsNewOpen, setWhatsNewOpen] = useState(false);
   const recentEntries = useMemo(
     () => (version ? entriesUpTo(WHATS_NEW_ENTRIES, version) : []),
@@ -39,6 +51,57 @@ export function AboutSection({ isPortable }: { isPortable: boolean }) {
       toast.error(String(e));
     }
   };
+  const handleCheckUpdate = async () => {
+    if (hasUpdate) {
+      if (isPortable) {
+        try {
+          await settingsApi.checkUpdates();
+        } catch (error) {
+          console.error("[AboutSection] Portable update failed", error);
+        }
+        return;
+      }
+
+      setIsDownloading(true);
+      try {
+        resetDismiss();
+        const installed = await settingsApi.installUpdateAndRestart();
+        if (!installed) {
+          toast.success(t("settings.upToDate"), { closeButton: true });
+        }
+      } catch (error) {
+        console.error("[AboutSection] Update failed", error);
+        toast.error(t("settings.updateFailed"), {
+          description: extractErrorMessage(error) || undefined,
+          closeButton: true,
+        });
+        try {
+          await settingsApi.checkUpdates();
+        } catch (fallbackError) {
+          console.error(
+            "[AboutSection] Failed to open fallback updater",
+            fallbackError,
+          );
+        }
+      } finally {
+        setIsDownloading(false);
+      }
+      return;
+    }
+
+    try {
+      const available = await checkUpdate();
+      if (!available) {
+        toast.success(t("settings.upToDate"), { closeButton: true });
+      }
+    } catch (error) {
+      console.error("[AboutSection] Check update failed", error);
+      toast.error(t("settings.checkUpdateFailed"), {
+        description: extractErrorMessage(error) || undefined,
+        closeButton: true,
+      });
+    }
+  };
   return (
     <div className="divide-y divide-border">
       <div className="flex flex-wrap items-center gap-4 py-4">
@@ -62,16 +125,55 @@ export function AboutSection({ isPortable }: { isPortable: boolean }) {
             )}
           </div>
         </div>
-        <Button variant="neutral" onClick={() => void open(CUSTOM_UPDATE_URL)}>
-          <ExternalLink className="h-4 w-4" />
-          {t("admincloudAbout.manualUpdate", "手动更新")}
+        <Button
+          type="button"
+          variant={hasUpdate ? "solid" : "neutral"}
+          size="regular"
+          onClick={() => void handleCheckUpdate()}
+          disabled={isChecking || isDownloading}
+        >
+          {isDownloading ? (
+            <>
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              {t("settings.updating")}
+            </>
+          ) : hasUpdate ? (
+            <>
+              <Download className="h-3.5 w-3.5" />
+              {t("settings.updateTo", {
+                version: updateInfo?.availableVersion ?? "",
+              })}
+            </>
+          ) : isChecking ? (
+            <>
+              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+              {t("settings.checking")}
+            </>
+          ) : (
+            <>
+              <RefreshCw className="h-3.5 w-3.5" />
+              {t("settings.checkForUpdates")}
+            </>
+          )}
         </Button>
       </div>
+      {hasUpdate && updateInfo && (
+        <div className="space-y-1 py-4 text-body">
+          <p className="font-medium text-fg-1">
+            {t("settings.updateAvailable", {
+              version: updateInfo.availableVersion,
+            })}
+          </p>
+          {updateInfo.notes && (
+            <p className="line-clamp-3 text-fg-2">{updateInfo.notes}</p>
+          )}
+        </div>
+      )}
       <div className="space-y-2 py-4 text-body text-fg-2">
         <p>
           {t(
             "admincloudAbout.updates",
-            "尚未建立定制签名更新服务。请从 AdminCloudAI 官网或联系支持获取兼容安装包；不会自动下载或安装上游发行包。",
+            "通过 AdminCloudAI 自建签名升级服务在线更新；不会下载或安装上游发行包。",
           )}
         </p>
         <p>

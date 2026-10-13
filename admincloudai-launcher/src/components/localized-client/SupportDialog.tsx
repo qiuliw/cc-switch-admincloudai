@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FolderOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,29 @@ export function SupportDialog({
 }) {
   const { t } = useTranslation();
   const [error, setError] = useState<string | null>(null);
+  // 在线二维码优先（服务端可轮换），拉取失败回落内置图片
+  const [qrSrc, setQrSrc] = useState<string>(supportQr);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    let active = true;
+    void localizedClientApi
+      .getSupportQr()
+      .then((online) => {
+        if (active && online) {
+          setQrSrc(online);
+        }
+      })
+      .catch(() => {
+        // 保留内置二维码
+      });
+    return () => {
+      active = false;
+    };
+  }, [open]);
+
   const openLogs = async () => {
     setError(null);
     try {
@@ -43,7 +66,7 @@ export function SupportDialog({
         </DialogHeader>
         <div className="flex justify-center px-6 py-5">
           <img
-            src={supportQr}
+            src={qrSrc}
             alt={t("localizedClient.supportQr")}
             className="h-44 w-44 bg-white p-2 object-contain"
           />

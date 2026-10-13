@@ -1,5 +1,4 @@
 import { invoke } from "@tauri-apps/api/core";
-import { CUSTOM_UPDATE_URL, MANUAL_UPDATE_MESSAGE } from "@/lib/updater";
 import type {
   Settings,
   WebDavSyncSettings,
@@ -75,11 +74,11 @@ export const settingsApi = {
   },
 
   async installUpdateAndRestart(): Promise<boolean> {
-    throw new Error(MANUAL_UPDATE_MESSAGE);
+    return await invoke("install_update_and_restart");
   },
 
   async checkUpdates(): Promise<void> {
-    await invoke("open_external", { url: CUSTOM_UPDATE_URL });
+    await invoke("check_for_updates");
   },
 
   async isPortable(): Promise<boolean> {

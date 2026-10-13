@@ -184,6 +184,38 @@ fn cc_switch_skills_dir() -> std::path::PathBuf {
     crate::config::get_app_config_dir().join("skills")
 }
 
+/// 随应用打包的内置技能目录白名单（resources/skills/<name>）
+pub const BUILTIN_SKILLS: &[&str] = &["imagegen-enhance"];
+
+/// 安装内置技能（随应用打包在 resources/skills/ 下，白名单校验）。
+/// 复制到 SSOT、登记入库，并默认启用 Claude / Codex；之后可在 Skills 页按应用开关。
+#[tauri::command]
+pub async fn install_builtin_skill(
+    directory: String,
+    handle: AppHandle,
+    app_state: State<'_, AppState>,
+) -> Result<InstalledSkill, String> {
+    use tauri::Manager;
+
+    if !BUILTIN_SKILLS.contains(&directory.as_str()) {
+        return Err(format!("未知的内置技能: {directory}"));
+    }
+    let resource_dir = handle
+        .path()
+        .resource_dir()
+        .map_err(|e| format!("定位资源目录失败: {e}"))?;
+    let source = resource_dir
+        .join("resources")
+        .join("skills")
+        .join(&directory);
+    let mut apps = crate::app_config::SkillApps::default();
+    apps.claude = true;
+    apps.codex = true;
+    let mut imported =
+        SkillService::install_builtin(&app_state.db, &source, apps).map_err(|e| e.to_string())?;
+    imported.pop().ok_or_else(|| "内置技能导入失败".to_string())
+}
+
 /// 「存储与同步」里显示的 CC Switch 目录路径
 #[tauri::command]
 pub async fn get_cc_switch_skills_dir() -> Result<String, String> {

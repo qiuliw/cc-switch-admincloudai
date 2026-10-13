@@ -101,6 +101,25 @@ export function useDiscoverableSkillsFailures() {
 }
 
 /**
+ * 安装内置技能（imagegen-enhance，随安装包分发）
+ * 成功后合并缓存并刷新权威列表（与统一安装共用收敛策略）
+ */
+export function useInstallBuiltinSkill() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (directory: string) => skillsApi.installBuiltinSkill(directory),
+    onSuccess: (installedSkill) => {
+      queryClient.setQueryData<InstalledSkill[]>(
+        ["skills", "installed"],
+        (oldData) => mergeImportedSkills(oldData, [installedSkill]),
+      );
+    },
+    onSettled: () =>
+      queryClient.invalidateQueries({ queryKey: ["skills", "installed"] }),
+  });
+}
+
+/**
  * 安装 Skill
  * 成功后先合并缓存，并在结束后刷新权威列表
  */

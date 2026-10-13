@@ -203,6 +203,11 @@ export const skillsApi = {
     return await invoke("delete_skill_backup", { backupId });
   },
 
+  /** 安装随应用内置的技能（imagegen-enhance，默认启用 Claude / Codex） */
+  async installBuiltinSkill(directory: string): Promise<InstalledSkill> {
+    return await invoke("install_builtin_skill", { directory });
+  },
+
   /** 安装 Skill（统一安装） */
   async installUnified(
     skill: DiscoverableSkill,

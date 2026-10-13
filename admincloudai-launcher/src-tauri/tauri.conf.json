@@ -37,7 +37,8 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "createUpdaterArtifacts": false,
+    "createUpdaterArtifacts": true,
+    "resources": ["resources/skills/imagegen-enhance"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -62,6 +63,15 @@
       "desktop": {
         "schemes": ["ccswitch"]
       }
+    },
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IENGNDQ0NDUxMEYzMTk4NEQKUldSTm1ERVBVVVJFenhMOXYwM2oyajdKUG40aVBzVk1vcUVHTTkrYkZtYjRadk9JSFAxemEyaHUK",
+      "endpoints": [
+        "https://api.admincloudai.com/api/update/{{target}}/{{current_version}}"
+      ]
+    },
+    "admincloud": {
+      "qrUrl": "https://api.admincloudai.com/api/qr"
     }
   }
 }

@@ -1,0 +1,11 @@
+{
+  "version": "4.0.10",
+  "notes": "示例版本说明：恢复在线升级、在线客服二维码、内置图片生成技能（imagegen-enhance）。",
+  "pub_date": "2026-10-13T00:00:00Z",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "（把 pnpm tauri build 生成的 .sig 文件内容整段粘贴到这里）",
+      "url": "https://api.admincloudai.com/downloads/AdminCloudAI-Setup-4.0.10.exe"
+    }
+  }
+}

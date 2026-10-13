@@ -1,0 +1,6 @@
+.secrets/
+target/
+node_modules/
+web/dist/
+data/updates/
+data/images/

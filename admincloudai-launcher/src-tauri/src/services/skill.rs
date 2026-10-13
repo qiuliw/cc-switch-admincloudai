@@ -2383,6 +2383,36 @@ impl SkillService {
         }
     }
 
+    /// 安装随安装包内置的技能（随打包资源分发）。
+    /// 先把资源目录覆盖复制到 SSOT，再走统一导入路径登记入库并投影到所选应用；
+    /// 因此内置技能与 GitHub 技能共用同一套启用/同步/卸载机制。
+    pub fn install_builtin(
+        db: &Arc<Database>,
+        source: &Path,
+        apps: SkillApps,
+    ) -> Result<Vec<InstalledSkill>> {
+        let dir_name = source
+            .file_name()
+            .and_then(|n| n.to_str())
+            .map(String::from)
+            .ok_or_else(|| anyhow!("内置技能目录名非法: {}", source.display()))?;
+        if !source.join("SKILL.md").is_file() {
+            return Err(anyhow!("内置技能缺少 SKILL.md: {}", source.display()));
+        }
+        let dest = Self::get_ssot_dir()?.join(&dir_name);
+        if dest.exists() {
+            Self::remove_path(&dest)?;
+        }
+        Self::copy_dir_recursive(source, &dest)?;
+        Self::import_from_apps(
+            db,
+            vec![ImportSkillSelection {
+                directory: dir_name,
+                apps,
+            }],
+        )
+    }
+
     // ========== 文件同步方法 ==========
 
     /// 创建符号链接（跨平台）
@@ -5689,6 +5719,72 @@ mod tests {
         // 没勾的应用不写；发现它的地方保持原样（仍是真实目录，不换成链接）。
         assert!(!app_copy(AppType::OpenCode).exists());
         assert!(!SkillService::is_symlink(&app_copy(AppType::Claude)));
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn install_builtin_copies_resource_into_ssot_and_deploys_to_selected_apps() {
+        let temp = tempdir().unwrap();
+        let _home = TestHomeGuard::set(temp.path());
+        let _location = StorageLocationGuard::set(SkillStorageLocation::CcSwitch);
+        let _pi_dir = crate::pi_config::test_support::TestAgentDir::new();
+        let db = Arc::new(Database::memory().unwrap());
+
+        // 模拟打包资源里的内置技能目录
+        let resource = temp
+            .path()
+            .join("resources")
+            .join("skills")
+            .join("builtin-demo");
+        write_skill(&resource, "builtin skill");
+
+        let imported = SkillService::install_builtin(
+            &db,
+            &resource,
+            SkillApps {
+                claude: true,
+                codex: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        assert_eq!(imported.len(), 1);
+        assert_eq!(imported[0].directory, "builtin-demo");
+        assert!(imported[0].apps.claude && imported[0].apps.codex);
+        // SSOT 里有真实副本，且已投影到所选应用
+        assert!(SkillService::get_ssot_dir()
+            .unwrap()
+            .join("builtin-demo")
+            .join("SKILL.md")
+            .exists());
+        for app in [AppType::Claude, AppType::Codex] {
+            assert!(SkillService::get_app_skills_dir(&app)
+                .unwrap()
+                .join("builtin-demo")
+                .join("SKILL.md")
+                .exists());
+        }
+        // 未勾选的应用不投影
+        assert!(!SkillService::get_app_skills_dir(&AppType::OpenCode)
+            .unwrap()
+            .join("builtin-demo")
+            .exists());
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn install_builtin_rejects_missing_skill_md() {
+        let temp = tempdir().unwrap();
+        let _home = TestHomeGuard::set(temp.path());
+        let _location = StorageLocationGuard::set(SkillStorageLocation::CcSwitch);
+        let db = Arc::new(Database::memory().unwrap());
+
+        let resource = temp.path().join("skills").join("broken");
+        fs::create_dir_all(&resource).unwrap();
+
+        let err = SkillService::install_builtin(&db, &resource, SkillApps::default()).unwrap_err();
+        assert!(err.to_string().contains("SKILL.md"));
     }
 
     #[test]

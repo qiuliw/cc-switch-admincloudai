@@ -91,6 +91,10 @@ vi.mock("@/hooks/useSkills", () => ({
     ],
     refetch: m.scanUnmanaged,
   }),
+  useInstallBuiltinSkill: () => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
   useImportSkillsFromApps: () => ({
     mutateAsync: m.importSkills,
     isPending: false,

@@ -460,6 +460,7 @@ pub fn run() {
         })
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(
@@ -1393,6 +1394,7 @@ pub fn run() {
             commands::open_chatgpt_client,
             commands::pick_chinese_chatgpt_path,
             commands::set_chinese_chatgpt_path,
+            commands::get_online_support_qr,
             commands::get_providers,
             commands::get_current_provider,
             commands::add_provider,
@@ -1562,6 +1564,7 @@ pub fn run() {
             commands::restore_env_backup,
             // Skill management (v3.10.0+ unified)
             commands::get_installed_skills,
+            commands::install_builtin_skill,
             commands::get_skill_backups,
             commands::delete_skill_backup,
             commands::install_skill_unified,

@@ -222,7 +222,10 @@ async fn upload_package(
     }
 
     let Some(version) = sanitize_version(&version) else {
-        return error_json(StatusCode::BAD_REQUEST, "版本号非法（仅允许字母数字与 . _ + -）");
+        return error_json(
+            StatusCode::BAD_REQUEST,
+            "版本号非法（仅允许字母数字与 . _ + -）",
+        );
     };
     let Some((raw_name, bytes)) = package else {
         return error_json(StatusCode::BAD_REQUEST, "缺少安装包文件");
@@ -331,10 +334,7 @@ mod tests {
             sanitize_filename("C:\\Downloads\\AdminCloudAI-Setup_4.1.exe"),
             Some("AdminCloudAI-Setup_4.1.exe".into())
         );
-        assert_eq!(
-            sanitize_filename("../../evil.exe"),
-            Some("evil.exe".into())
-        );
+        assert_eq!(sanitize_filename("../../evil.exe"), Some("evil.exe".into()));
         assert_eq!(sanitize_filename("payload.txt"), None);
         assert_eq!(sanitize_filename(""), None);
     }

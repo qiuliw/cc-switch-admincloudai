@@ -41,11 +41,11 @@ async fn main() {
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or_else(|| "0.0.0.0:8080".parse().unwrap());
-    let data_dir =
-        PathBuf::from(std::env::var("DATA_DIR").unwrap_or_else(|_| "data".into()));
-    let web_dir =
-        PathBuf::from(std::env::var("WEB_DIR").unwrap_or_else(|_| "web-dist".into()));
-    let admin_password = std::env::var("ADMIN_PASSWORD").ok().filter(|p| !p.is_empty());
+    let data_dir = PathBuf::from(std::env::var("DATA_DIR").unwrap_or_else(|_| "data".into()));
+    let web_dir = PathBuf::from(std::env::var("WEB_DIR").unwrap_or_else(|_| "web-dist".into()));
+    let admin_password = std::env::var("ADMIN_PASSWORD")
+        .ok()
+        .filter(|p| !p.is_empty());
     let public_base = std::env::var("PUBLIC_BASE_URL")
         .ok()
         .filter(|v| !v.is_empty())
@@ -82,7 +82,11 @@ async fn main() {
         .unwrap_or_else(|e| panic!("监听 {bind} 失败: {e}"));
     tracing::info!(
         "AdminCloudAI server listening on http://{bind}（管理端：{}）",
-        if admin_enabled { "已启用" } else { "未启用（未设置 ADMIN_PASSWORD）" }
+        if admin_enabled {
+            "已启用"
+        } else {
+            "未启用（未设置 ADMIN_PASSWORD）"
+        }
     );
 
     axum::serve(listener, app)
@@ -114,7 +118,10 @@ fn is_newer(latest: &str, current: &str) -> bool {
     };
     let (a, b) = (parse(latest), parse(current));
     for i in 0..a.len().max(b.len()) {
-        let (x, y) = (a.get(i).copied().unwrap_or(0), b.get(i).copied().unwrap_or(0));
+        let (x, y) = (
+            a.get(i).copied().unwrap_or(0),
+            b.get(i).copied().unwrap_or(0),
+        );
         if x != y {
             return x > y;
         }
@@ -139,7 +146,11 @@ async fn update_handler(
     }
     // 客户端要的 target 不在 platforms 里时按无更新处理
     if !target.is_empty() {
-        if versions.get("platforms").and_then(|p| p.get(&target)).is_none() {
+        if versions
+            .get("platforms")
+            .and_then(|p| p.get(&target))
+            .is_none()
+        {
             tracing::warn!("versions.json 缺少平台 {target}，按无更新处理");
             return StatusCode::NO_CONTENT.into_response();
         }

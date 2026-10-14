@@ -1,6 +1,6 @@
 # AdminCloudAI Backend
 
-AdminCloudAI 启动器的后端服务：**在线升级 feed + 在线客服二维码**。
+AdminCloudAI 启动器的后端服务：**在线升级 feed + 在线客服二维码 + 管理端上传**。
 单二进制（axum）+ 单页官网（Svelte 静态构建），Docker Compose 一键部署，无数据库。
 
 ## 目录
@@ -25,8 +25,11 @@ admincloudai-backend/
 | GET | `/api/qr` | 在线客服二维码（`versions.json` 的 `qr_url` 优先，302 跳转；否则返回 `data/qr.png`） |
 | GET | `/downloads/{file}` | 下载安装包 |
 | GET | `/health` | 健康检查 |
+| GET | `/api/admin/ping` | 管理端登录校验（Basic，密码 = `ADMIN_PASSWORD`） |
+| POST | `/api/admin/package` | 上传安装包（multipart：`file` .exe、`sig` .sig、`version`、`notes`），自动更新发版清单 |
+| POST | `/api/admin/qr` | 更新客服二维码（multipart：`file`，仅 PNG，≤2MB） |
 
-静态官网挂在 `/`。
+静态官网挂在 `/`；管理界面在 `/admin`（`ADMIN_PASSWORD` 未设置时管理接口整体禁用）。
 
 ## 部署
 
@@ -34,7 +37,18 @@ admincloudai-backend/
 docker compose up -d --build
 ```
 
-环境变量：`BIND`（默认 0.0.0.0:8080）、`DATA_DIR`（默认 /data）、`WEB_DIR`。
+环境变量（建议写在同级 `.env` 文件）：`BIND`（默认 0.0.0.0:8080）、`DATA_DIR`（默认
+/data）、`WEB_DIR`、`PUBLIC_BASE_URL`（拼接下载链接，默认 https://api.admincloudai.com）、
+`ADMIN_PASSWORD`（管理端密码，未设置则禁用管理接口）。
+
+## 管理端
+
+打开 `https://<域名>/admin`（或直接 `:8080/admin`），输入 `ADMIN_PASSWORD` 登录：
+
+- **发布新版本**：填版本号，选择 `.exe` 安装包与 `.sig` 签名文件（`tauri build` 产物），
+  点发布 —— 服务端保存安装包到 `data/updates/`，并原子更新 `versions.json` 的
+  `version` / `notes` / `signature` / `url`，客户端下次启动即收到更新。
+- **更新客服二维码**：选择 PNG 上传，覆盖 `data/qr.png`，立即生效。
 
 ## 发新版本流程
 
@@ -46,8 +60,9 @@ docker compose up -d --build
    公钥已写入 `tauri.conf.json` 的 `plugins.updater.pubkey`；构建时通过
    `TAURI_SIGNING_PRIVATE_KEY` / `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` 提供私钥。
 2. 构建 NSIS 安装包：`pnpm tauri build --bundles nsis`（产物带 `.sig` 签名文件）。
-3. 把安装包放入 `data/updates/`，更新 `data/versions.json` 的 `version`、`notes`、
-   `signature`（`.sig` 文件全文）与 `url`。客户端启动即自动检查更新。
+3. 在管理端 `/admin` 上传安装包与签名、填版本号发布；也可手动把文件放入
+   `data/updates/` 并编辑 `data/versions.json`（`version`、`notes`、`signature`
+   即 `.sig` 文件全文、`url`）。客户端启动即自动检查更新。
 
 ## 本地开发
 

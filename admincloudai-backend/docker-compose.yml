@@ -4,5 +4,10 @@ services:
     restart: unless-stopped
     ports:
       - "8080:8080"
+    environment:
+      # 对外域名（拼接安装包下载链接）
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://api.admincloudai.com}
+      # 管理端密码；不设置则 /api/admin/* 整体禁用。建议在同级 .env 文件里提供
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
     volumes:
       - ./data:/data

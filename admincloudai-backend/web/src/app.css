@@ -125,3 +125,48 @@ footer {
 footer a {
   color: var(--accent);
 }
+
+/* ---- 管理端 ---- */
+main > .card.narrow {
+  max-width: 420px;
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.col label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.col input[type="text"],
+.col input:not([type]),
+.col input[type="password"],
+.col textarea {
+  background: #0c0e14;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 8px 10px;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.col input[type="file"] {
+  font-size: 13px;
+}
+
+.notice {
+  margin: 0;
+  padding: 10px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  font-size: 14px;
+}

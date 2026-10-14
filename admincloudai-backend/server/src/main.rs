@@ -1,12 +1,14 @@
-//! AdminCloudAI 后端服务：在线升级 feed、在线客服二维码。
+//! AdminCloudAI 后端服务：在线升级 feed、在线客服二维码、管理端上传。
 //!
 //! 极简设计：单二进制 + 数据目录（卷挂载），无数据库。
-//! - `data/versions.json`  - 升级信息（Tauri v2 updater 格式），改文件即发版
-//! - `data/qr.png`         - 客服二维码图片，替换文件即可轮换
+//! - `data/versions.json`  - 升级信息（Tauri v2 updater 格式），管理端上传或改文件即发版
+//! - `data/qr.png`         - 客服二维码图片，管理端上传或替换文件即轮换
 //! - `data/updates/`       - 安装包（配合 versions.json 里的 url）
 
+mod admin;
+
 use std::net::SocketAddr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use axum::extract::{Path as AxPath, State};
 use axum::http::{header, HeaderMap, StatusCode};
@@ -20,6 +22,10 @@ use tower_http::trace::TraceLayer;
 #[derive(Clone)]
 struct Shared {
     data_dir: PathBuf,
+    /// 管理端密码；未设置则管理接口禁用
+    admin_password: Option<String>,
+    /// 对外基础地址（拼接安装包下载链接）
+    public_base: String,
 }
 
 #[tokio::main]
@@ -39,15 +45,28 @@ async fn main() {
         PathBuf::from(std::env::var("DATA_DIR").unwrap_or_else(|_| "data".into()));
     let web_dir =
         PathBuf::from(std::env::var("WEB_DIR").unwrap_or_else(|_| "web-dist".into()));
+    let admin_password = std::env::var("ADMIN_PASSWORD").ok().filter(|p| !p.is_empty());
+    let public_base = std::env::var("PUBLIC_BASE_URL")
+        .ok()
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| format!("http://{bind}"))
+        .trim_end_matches('/')
+        .to_string();
 
     let _ = std::fs::create_dir_all(data_dir.join("updates"));
 
-    let shared = Shared { data_dir };
+    let shared = Shared {
+        data_dir,
+        admin_password,
+        public_base,
+    };
+    let admin_enabled = shared.admin_password.is_some();
 
     let app = Router::new()
         .route("/api/update/{target}/{current}", get(update_handler))
         .route("/api/qr", get(qr_handler))
         .route("/health", get(|| async { "ok" }))
+        .merge(admin::router())
         .nest_service("/downloads", ServeDir::new(shared.data_dir.join("updates")))
         .fallback_service(
             ServeDir::new(&web_dir)
@@ -61,7 +80,10 @@ async fn main() {
     let listener = tokio::net::TcpListener::bind(bind)
         .await
         .unwrap_or_else(|e| panic!("监听 {bind} 失败: {e}"));
-    tracing::info!("AdminCloudAI server listening on http://{bind}");
+    tracing::info!(
+        "AdminCloudAI server listening on http://{bind}（管理端：{}）",
+        if admin_enabled { "已启用" } else { "未启用（未设置 ADMIN_PASSWORD）" }
+    );
 
     axum::serve(listener, app)
         .with_graceful_shutdown(async {
@@ -71,10 +93,14 @@ async fn main() {
         .expect("server error");
 }
 
-/// 读取 data/versions.json；不存在返回 None（未发版）。
-fn read_versions(data_dir: &std::path::Path) -> Option<Value> {
+/// 读取 data/versions.json；不存在或损坏返回 None。
+fn read_versions(data_dir: &Path) -> Option<Value> {
     let raw = std::fs::read_to_string(data_dir.join("versions.json")).ok()?;
     serde_json::from_str(&raw).ok()
+}
+
+fn error_json(status: StatusCode, message: &str) -> Response {
+    (status, Json(serde_json::json!({ "error": message }))).into_response()
 }
 
 /// 语义化版本比较（只比数字段，非法段按 0 处理）

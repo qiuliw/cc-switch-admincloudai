@@ -22,6 +22,7 @@ use tower_http::trace::TraceLayer;
 #[derive(Clone)]
 struct Shared {
     data_dir: PathBuf,
+    web_dir: PathBuf,
     /// 管理端密码；未设置则管理接口禁用
     admin_password: Option<String>,
     /// 对外基础地址（拼接安装包下载链接）
@@ -57,6 +58,7 @@ async fn main() {
 
     let shared = Shared {
         data_dir,
+        web_dir,
         admin_password,
         public_base,
     };
@@ -68,12 +70,8 @@ async fn main() {
         .route("/health", get(|| async { "ok" }))
         .merge(admin::router())
         .nest_service("/downloads", ServeDir::new(shared.data_dir.join("updates")))
-        .fallback_service(
-            ServeDir::new(&web_dir)
-                .append_index_html_on_directories(true)
-                // SPA 单页：未知路径回落到首页
-                .fallback(ServeDir::new(&web_dir).append_index_html_on_directories(true)),
-        )
+        // SPA 单页：文件存在则返回文件，否则回落 index.html（如 /admin）
+        .fallback(get(spa_fallback))
         .layer(TraceLayer::new_for_http())
         .with_state(shared);
 
@@ -105,6 +103,55 @@ fn read_versions(data_dir: &Path) -> Option<Value> {
 
 fn error_json(status: StatusCode, message: &str) -> Response {
     (status, Json(serde_json::json!({ "error": message }))).into_response()
+}
+
+/// 解析 SPA 静态文件请求路径；拒绝路径穿越，空路径即首页。
+fn resolve_web_file(web_dir: &Path, raw: &str) -> Option<PathBuf> {
+    let rel = raw.trim_start_matches('/');
+    let rel = if rel.is_empty() { "index.html" } else { rel };
+    if rel.split('/').any(|seg| seg == "..") {
+        return None;
+    }
+    (!rel.is_empty()).then(|| web_dir.join(rel))
+}
+
+fn mime_of(path: &str) -> &'static str {
+    match path.rsplit('.').next().unwrap_or("") {
+        "html" => "text/html; charset=utf-8",
+        "js" => "text/javascript",
+        "css" => "text/css",
+        "png" => "image/png",
+        "svg" => "image/svg+xml",
+        "ico" => "image/x-icon",
+        "json" => "application/json",
+        "txt" => "text/plain; charset=utf-8",
+        _ => "application/octet-stream",
+    }
+}
+
+/// 静态文件 + SPA 回落：命不中文件时一律返回 index.html（前端按路径渲染视图）。
+async fn spa_fallback(State(shared): State<Shared>, uri: axum::http::Uri) -> Response {
+    let resolved = resolve_web_file(&shared.web_dir, uri.path());
+    let file = resolved
+        .as_ref()
+        .and_then(|path| std::fs::read(path).ok())
+        .map(|bytes| {
+            let mime = mime_of(
+                resolved
+                    .as_deref()
+                    .unwrap_or_else(|| Path::new("index.html"))
+                    .to_string_lossy()
+                    .as_ref(),
+            );
+            ([(header::CONTENT_TYPE, mime)], bytes).into_response()
+        });
+    if let Some(response) = file {
+        return response;
+    }
+    match std::fs::read(shared.web_dir.join("index.html")) {
+        Ok(bytes) => ([(header::CONTENT_TYPE, "text/html; charset=utf-8")], bytes).into_response(),
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
 }
 
 /// 语义化版本比较（只比数字段，非法段按 0 处理）
@@ -195,5 +242,27 @@ mod tests {
         assert!(!is_newer("4.0.9", "4.0.9"));
         assert!(!is_newer("4.0.8", "4.0.9"));
         assert!(!is_newer("abc", "4.0.9")); // 非法版本不触发更新
+    }
+
+    use super::*;
+
+    #[test]
+    fn web_path_resolution() {
+        let dir = Path::new("/srv/web");
+        assert_eq!(resolve_web_file(dir, "/"), Some(dir.join("index.html")));
+        assert_eq!(
+            resolve_web_file(dir, "/assets/x.js"),
+            Some(dir.join("assets/x.js"))
+        );
+        // 穿越一律拒绝
+        assert_eq!(resolve_web_file(dir, "/../secrets"), None);
+        assert_eq!(resolve_web_file(dir, "/a/../../b"), None);
+    }
+
+    #[test]
+    fn mime_detection() {
+        assert_eq!(mime_of("/index.html"), "text/html; charset=utf-8");
+        assert_eq!(mime_of("/a.js"), "text/javascript");
+        assert_eq!(mime_of("/x.bin"), "application/octet-stream");
     }
 }

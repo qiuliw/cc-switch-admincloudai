@@ -1,6 +1,16 @@
 <script lang="ts">
   // AdminCloudAI 官网单页：最新版本下载 + 在线客服二维码 + 管理端（/admin）。
-  // 极简实现：原生 fetch + 手写样式，无 UI 框架。
+  // 极简实现：原生 fetch + 手写样式，无 UI 框架与路由库。
+  import Admin from "./Admin.svelte";
+
+  // 路径路由（无路由库）：popstate 时同步，首次渲染由 $state 初始化完成
+  function currentRoute(): string {
+    return location.pathname.replace(/\/+$/, "") || "/";
+  }
+  let route = $state(currentRoute());
+  window.addEventListener("popstate", () => {
+    route = currentRoute();
+  });
 
   let latest: { version: string; notes?: string; url?: string } | null = $state(null);
   let qrFailed = $state(false);
@@ -23,7 +33,7 @@
   loadLatest();
 </script>
 
-{#if location.pathname === "/admin"}
+{#if route === "/admin"}
   <Admin />
 {:else}
   <header>

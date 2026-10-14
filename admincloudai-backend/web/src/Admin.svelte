@@ -1,6 +1,7 @@
 <script lang="ts">
   // 管理端视图：Basic 鉴权（ADMIN_PASSWORD），上传新安装包 / 更新客服二维码。
-  let password = $state(sessionStorage.getItem("admin-pass") ?? "");
+  const savedPassword = sessionStorage.getItem("admin-pass") ?? "";
+  let password = $state(savedPassword);
   let loggedIn = $state(false);
   let message = $state("");
   let busy = $state(false);
@@ -13,11 +14,10 @@
   // 二维码表单
   let qrFile = $state<File | null>(null);
 
-  $effect(() => {
-    if (password) {
-      void login();
-    }
-  });
+  // 挂载时若有保存的密码则静默登录一次（不是响应式，避免击键触发请求）
+  if (savedPassword) {
+    void login();
+  }
 
   function authHeader(): string {
     return "Basic " + btoa("admin:" + password);
